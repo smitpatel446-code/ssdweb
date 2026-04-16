@@ -485,6 +485,14 @@
       max-width: 100vw;
     }
 
+    body.scroll-lock {
+      overflow: hidden !important;
+      position: fixed;
+      left: 0;
+      right: 0;
+      width: 100%;
+    }
+
     /* ===== AGE GATE ===== */
     #age-gate {
       position: fixed;
@@ -657,6 +665,7 @@
       display: flex;
       gap: 3rem;
       list-style: none;
+      overscroll-behavior: contain;
     }
 
     .nav-links a {
@@ -679,6 +688,16 @@
       gap: 5px;
       cursor: pointer;
       padding: 5px;
+      border: none;
+      background: transparent;
+      color: inherit;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .nav-hamburger:focus-visible {
+      outline: 1px solid rgba(201, 168, 76, 0.6);
+      outline-offset: 4px;
     }
 
     .nav-hamburger span {
@@ -2361,6 +2380,8 @@
         gap: 2.2rem;
         z-index: 490;
         padding: 5rem 2rem 3rem;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       .nav-links.open {
@@ -2662,7 +2683,7 @@
     /* ===== GALLERY SECTION ===== */
     #gallery {
       padding: 8rem 2rem;
-      background: var(--black);
+      background: linear-gradient(180deg, #04070b 0%, #081018 50%, #0c151e 100%);
       overflow-x: hidden;
     }
 
@@ -2673,14 +2694,15 @@
 
     .gallery-sub {
       font-size: 0.88rem;
-      color: #666;
+      color: #9aa4af;
       max-width: 560px;
       margin: 1rem auto 0;
       line-height: 1.8;
     }
 
+    /* ── Gallery Video: adaptive aspect ratio ────────────────── */
     .gallery-video-wrap {
-      max-width: 900px;
+      max-width: 980px;
       margin: 0 auto 4rem;
     }
 
@@ -2694,23 +2716,105 @@
       margin-bottom: 1.2rem;
     }
 
+    /* Videos strip — horizontal scroll when multiple */
+    .gallery-videos-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+      margin: 0 auto 4rem;
+      max-width: 1350px;
+      padding: 0 1rem;
+    }
+
+    /* Each video card auto-sizes by orientation */
+    .gallery-video-card {
+      position: relative;
+      background: #070d14;
+      border: 1px solid rgba(201, 168, 76, 0.22);
+      overflow: hidden;
+      border-radius: 2px;
+      transition: border-color 0.4s, box-shadow 0.4s;
+      flex-shrink: 0;
+    }
+
+    .gallery-video-card:hover {
+      border-color: rgba(201, 168, 76, 0.55);
+      box-shadow: 0 0 30px rgba(201, 168, 76, 0.12);
+    }
+
+    /* Landscape 16:9 — fits most row width */
+    .gallery-video-card.landscape {
+      width: min(780px, 100%);
+    }
+    .gallery-video-card.landscape .video-ratio-box {
+      padding-bottom: 56.25%; /* 16:9 */
+    }
+
+    /* Portrait 9:16 — narrow tall card */
+    .gallery-video-card.portrait {
+      width: min(310px, 100%);
+    }
+    .gallery-video-card.portrait .video-ratio-box {
+      padding-bottom: 177.78%; /* 9:16 */
+    }
+
+    /* Square or unknown */
+    .gallery-video-card.square {
+      width: min(540px, 100%);
+    }
+    .gallery-video-card.square .video-ratio-box {
+      padding-bottom: 100%;
+    }
+
+    .video-ratio-box {
+      position: relative;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .video-ratio-box video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      /* contain = no crop, letterbox with dark bg */
+      object-fit: contain;
+      background: #000;
+    }
+
+    /* Video badge label */
+    .vid-badge {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(201,168,76,0.35);
+      padding: 4px 10px;
+      font-family: 'Cinzel', serif;
+      font-size: 0.52rem;
+      letter-spacing: 0.28em;
+      color: var(--gold);
+      text-transform: uppercase;
+      z-index: 3;
+      border-radius: 2px;
+    }
+
+    /* Legacy single-video inner kept for placeholder */
     .gallery-video-inner {
       position: relative;
       padding-bottom: 56.25%;
       height: 0;
       overflow: hidden;
-      background: #0d0d0d;
-      border: 1px solid rgba(201, 168, 76, 0.15);
+      background: #070d14;
+      border: 1px solid rgba(201, 168, 76, 0.22);
     }
-
     .gallery-video-inner video,
     .gallery-video-inner iframe {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      background: #000;
     }
 
     .gallery-video-placeholder {
@@ -2761,19 +2865,19 @@
       overflow: hidden;
       cursor: pointer;
       position: relative;
-      background: #111;
+      background: #0b1118;
     }
 
     .gallery-item img {
       width: 100%;
       display: block;
       transition: transform 0.6s ease, filter 0.6s ease;
-      filter: brightness(0.85);
+      filter: brightness(0.98) contrast(1.08) saturate(1.08);
     }
 
     .gallery-item:hover img {
       transform: scale(1.05);
-      filter: brightness(1);
+      filter: brightness(1.05) contrast(1.12) saturate(1.12);
     }
 
     .gallery-item-overlay {
@@ -2787,7 +2891,7 @@
     }
 
     .gallery-item:hover .gallery-item-overlay {
-      background: rgba(0, 0, 0, 0.25);
+      background: rgba(0, 0, 0, 0.16);
     }
 
     .gallery-item-overlay svg {
@@ -2944,12 +3048,18 @@
         margin-bottom: 6px;
       }
 
-      .lb-prev {
-        left: 0.4rem;
-      }
+      .lb-prev { left: 0.4rem; }
+      .lb-next { right: 0.4rem; }
 
-      .lb-next {
-        right: 0.4rem;
+      /* Stack video cards on mobile */
+      .gallery-video-card.landscape,
+      .gallery-video-card.portrait,
+      .gallery-video-card.square {
+        width: 100%;
+      }
+      .gallery-videos-strip {
+        flex-direction: column;
+        padding: 0;
       }
     }
 
@@ -2958,7 +3068,6 @@
         columns: 2;
         column-gap: 4px;
       }
-
       .gallery-item {
         margin-bottom: 4px;
       }
@@ -3055,9 +3164,10 @@
       <li><a href="#gallery">Gallery</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
-    <div class="nav-hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <button class="nav-hamburger" id="nav-hamburger" type="button" onclick="toggleMenu()" aria-label="Menu"
+      aria-controls="nav-links" aria-expanded="false">
       <span></span><span></span><span></span>
-    </div>
+    </button>
   </nav>
 
   <!-- =========================================================
@@ -3578,19 +3688,10 @@
         of Daman.</p>
     </div>
 
-    <!-- VIDEO -->
-    <div class="gallery-video-wrap fi" id="gallery-video-section" style="display:none;">
-      <p class="gallery-video-label">★ Featured Film ★</p>
-      <div class="gallery-video-inner" id="gallery-video-container">
-        <div class="gallery-video-placeholder" id="gallery-video-placeholder">
-          <div class="gvp-icon">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </div>
-          <p>No video uploaded yet</p>
-        </div>
-      </div>
+    <!-- VIDEOS STRIP — portrait & landscape adaptive -->
+    <div class="fi" id="gallery-video-section" style="display:none;">
+      <p class="gallery-video-label">★ Featured Films ★</p>
+      <div class="gallery-videos-strip" id="gallery-video-container"></div>
     </div>
 
     <!-- PHOTO GRID -->
@@ -3791,20 +3892,65 @@
       document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 60);
     }, { passive: true });
 
-    // ===== MOBILE MENU (with scroll lock + hamburger X) =====
-    function toggleMenu() {
-      const links = document.getElementById('nav-links');
-      const burger = document.querySelector('.nav-hamburger');
-      const isOpen = links.classList.toggle('open');
-      burger.classList.toggle('active', isOpen);
-      document.body.style.overflow = isOpen ? 'hidden' : '';
+    // ===== MOBILE MENU + SCROLL LOCK (all devices) =====
+    const navLinks = document.getElementById('nav-links');
+    const navBurger = document.getElementById('nav-hamburger');
+    var bodyLockState = { menu: false, lightbox: false };
+    var savedScrollY = 0;
+
+    function applyBodyLock() {
+      var shouldLock = bodyLockState.menu || bodyLockState.lightbox;
+      if (shouldLock) {
+        if (!document.body.classList.contains('scroll-lock')) {
+          savedScrollY = window.scrollY || window.pageYOffset || 0;
+          document.body.classList.add('scroll-lock');
+          document.body.style.top = '-' + savedScrollY + 'px';
+        }
+      } else if (document.body.classList.contains('scroll-lock')) {
+        document.body.classList.remove('scroll-lock');
+        document.body.style.top = '';
+        window.scrollTo(0, savedScrollY);
+      }
     }
+
+    function setBodyLock(key, value) {
+      bodyLockState[key] = !!value;
+      applyBodyLock();
+    }
+
+    function closeMenu() {
+      if (!navLinks || !navBurger) return;
+      navLinks.classList.remove('open');
+      navBurger.classList.remove('active');
+      navBurger.setAttribute('aria-expanded', 'false');
+      setBodyLock('menu', false);
+    }
+
+    function openMenu() {
+      if (!navLinks || !navBurger) return;
+      navLinks.classList.add('open');
+      navBurger.classList.add('active');
+      navBurger.setAttribute('aria-expanded', 'true');
+      setBodyLock('menu', true);
+    }
+
+    function toggleMenu() {
+      if (!navLinks) return;
+      if (navLinks.classList.contains('open')) closeMenu();
+      else openMenu();
+    }
+
     // Close on link click
-    document.querySelectorAll('#nav-links a').forEach(a => a.addEventListener('click', () => {
-      document.getElementById('nav-links').classList.remove('open');
-      document.querySelector('.nav-hamburger').classList.remove('active');
-      document.body.style.overflow = '';
-    }));
+    document.querySelectorAll('#nav-links a').forEach(a => a.addEventListener('click', closeMenu));
+    // Close when tapping the dark backdrop area
+    if (navLinks) {
+      navLinks.addEventListener('click', function (e) { if (e.target === navLinks) closeMenu(); });
+    }
+    // Escape closes menu
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+    // Ensure desktop resize never leaves mobile menu lock active
+    window.addEventListener('resize', function () { if (window.innerWidth > 768) closeMenu(); }, { passive: true });
+    window.addEventListener('orientationchange', closeMenu, { passive: true });
 
     // ===== SCROLL ANIMATIONS =====
     const observer = new IntersectionObserver((entries) => {
@@ -3851,60 +3997,133 @@
       var images = [];
       var current = 0;
 
+      /* ── Aspect-ratio-aware video renderer ──────────────────── */
+      function buildVideoCard(v, idx) {
+        var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/f_auto,q_auto:best,dpr_auto,w_1920,c_limit/' + v.public_id;
+        var poster = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/f_auto,so_0/' + v.public_id + '.jpg';
+
+        // Temporary hidden video to probe dimensions
+        var probe = document.createElement('video');
+        probe.preload = 'metadata';
+        probe.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
+        document.body.appendChild(probe);
+
+        // Outer card — class set after orientation detected
+        var card = document.createElement('div');
+        card.className = 'gallery-video-card'; // updated on loadedmetadata
+        card.innerHTML =
+          '<span class="vid-badge">&#9654; Film ' + (idx + 1) + '</span>' +
+          '<div class="video-ratio-box">' +
+          '<video src="' + url + '" controls playsinline preload="metadata" poster="' + poster + '"></video>' +
+          '</div>';
+
+        var realVid = card.querySelector('video');
+
+        function applyOrientation(w, h) {
+          var ratio = w / h;
+          if (ratio > 1.1) {
+            card.classList.add('landscape');
+          } else if (ratio < 0.91) {
+            card.classList.add('portrait');
+          } else {
+            card.classList.add('square');
+          }
+          probe.remove();
+        }
+
+        // Use probe element so the real player isn't affected during detection
+        probe.addEventListener('loadedmetadata', function () {
+          applyOrientation(probe.videoWidth, probe.videoHeight);
+        }, { once: true });
+        probe.addEventListener('error', function () {
+          card.classList.add('landscape'); // safe fallback
+          probe.remove();
+        }, { once: true });
+        probe.src = url;
+
+        // Also handle if real video fires first (cached)
+        realVid.addEventListener('loadedmetadata', function () {
+          if (!card.classList.contains('landscape') &&
+              !card.classList.contains('portrait') &&
+              !card.classList.contains('square')) {
+            applyOrientation(realVid.videoWidth, realVid.videoHeight);
+          }
+        }, { once: true });
+
+        // Hide card on fatal error
+        realVid.addEventListener('error', function () {
+          addIdToLS(LS_HIDE_KEY_V, v.public_id);
+          removeIdFromLS(LS_KEY_V, v.public_id);
+          card.remove();
+          if (!videoCont.querySelector('.gallery-video-card')) {
+            videoSec.style.display = 'none';
+          }
+        }, { once: true });
+
+        return card;
+      }
+
       function showGallery(resources) {
         loading.style.display = 'none';
         var photos = resources.filter(function (r) { return r.resource_type === 'image'; });
         var videos = resources.filter(function (r) { return r.resource_type === 'video'; });
 
-        // Video
+        // ── Videos (all, with adaptive portrait/landscape sizing) ──
         if (videos.length > 0) {
-          var v = videos[0];
-          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/q_auto,f_auto/' + v.public_id;
-          videoCont.innerHTML = '<video src="' + url + '" controls playsinline preload="metadata" poster="' +
-            'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/so_0/' + v.public_id + '.jpg' + '"></video>';
+          videoCont.innerHTML = '';
+          videos.forEach(function (v, i) {
+            videoCont.appendChild(buildVideoCard(v, i));
+          });
           videoSec.style.display = 'block';
+          observer.observe(videoSec);
+          videoSec.classList.add('fi');
         } else {
           videoSec.style.display = 'none';
         }
 
-        // Photos
+        // ── Photos ──
         if (photos.length === 0) { empty.style.display = 'block'; return; }
         images = photos.map(function (r) {
-          return 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/q_auto,f_auto/' + r.public_id;
+          return {
+            public_id: r.public_id,
+            url: 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/f_auto,q_auto:best,dpr_auto,w_3840,c_limit/' + r.public_id
+          };
         });
-        grid.innerHTML = images.map(function (url, i) {
+        grid.innerHTML = images.map(function (item, i) {
           return '<div class="gallery-item" data-index="' + i + '">' +
-            '<img src="' + url + '" loading="lazy" alt="Silver Star Distillery gallery photo ' + (i + 1) + '">' +
+            '<img src="' + item.url + '" data-public-id="' + item.public_id + '" loading="lazy" alt="Silver Star Distillery gallery photo ' + (i + 1) + '">' +
             '<div class="gallery-item-overlay">' +
             '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>' +
             '</div></div>';
         }).join('');
         grid.style.display = 'block';
+        empty.style.display = 'none';
         grid.querySelectorAll('.gallery-item').forEach(function (el) {
           el.addEventListener('click', function () { openLightbox(parseInt(el.dataset.index)); });
         });
-        // Re-run scroll observer for new items
+        bindGalleryImageErrors();
         grid.querySelectorAll('.gallery-item').forEach(function (el) { observer.observe(el); el.classList.add('fi'); });
       }
 
       function openLightbox(idx) {
+        if (!images.length || !images[idx]) return;
         current = idx;
-        lbImg.src = images[idx];
+        lbImg.src = images[idx].url;
         lbCounter.textContent = (idx + 1) + ' / ' + images.length;
         lb.classList.add('open');
-        document.body.style.overflow = 'hidden';
+        setBodyLock('lightbox', true);
       }
-      function closeLightbox() { lb.classList.remove('open'); document.body.style.overflow = ''; }
+      function closeLightbox() { lb.classList.remove('open'); setBodyLock('lightbox', false); }
       document.getElementById('lb-close').addEventListener('click', closeLightbox);
       lb.addEventListener('click', function (e) { if (e.target === lb) closeLightbox(); });
-      document.getElementById('lb-prev').addEventListener('click', function (e) { e.stopPropagation(); openLightbox((current - 1 + images.length) % images.length); });
-      document.getElementById('lb-next').addEventListener('click', function (e) { e.stopPropagation(); openLightbox((current + 1) % images.length); });
-      document.addEventListener('keydown', function (e) { if (!lb.classList.contains('open')) return; if (e.key === 'Escape') closeLightbox(); if (e.key === 'ArrowLeft') openLightbox((current - 1 + images.length) % images.length); if (e.key === 'ArrowRight') openLightbox((current + 1) % images.length); });
+      document.getElementById('lb-prev').addEventListener('click', function (e) { e.stopPropagation(); if (!images.length) return; openLightbox((current - 1 + images.length) % images.length); });
+      document.getElementById('lb-next').addEventListener('click', function (e) { e.stopPropagation(); if (!images.length) return; openLightbox((current + 1) % images.length); });
+      document.addEventListener('keydown', function (e) { if (!lb.classList.contains('open')) return; if (e.key === 'Escape') closeLightbox(); if (!images.length) return; if (e.key === 'ArrowLeft') openLightbox((current - 1 + images.length) % images.length); if (e.key === 'ArrowRight') openLightbox((current + 1) % images.length); });
 
       // Touch swipe support for lightbox
       var tsX = null;
       lb.addEventListener('touchstart', function (e) { tsX = e.touches[0].clientX; }, { passive: true });
-      lb.addEventListener('touchend', function (e) { if (tsX === null) return; var dx = e.changedTouches[0].clientX - tsX; tsX = null; if (Math.abs(dx) < 40) return; if (dx < 0) openLightbox((current + 1) % images.length); else openLightbox((current - 1 + images.length) % images.length); }, { passive: true });
+      lb.addEventListener('touchend', function (e) { if (tsX === null) return; var dx = e.changedTouches[0].clientX - tsX; tsX = null; if (Math.abs(dx) < 40 || !images.length) return; if (dx < 0) openLightbox((current + 1) % images.length); else openLightbox((current - 1 + images.length) % images.length); }, { passive: true });
 
       // -------------------------------------------------------
       // STRATEGY 1: Try Cloudinary tag-list endpoint
@@ -3915,8 +4134,26 @@
 
       var LS_KEY = 'ss_gallery_' + CLOUD_NAME + '_' + TAG;
       var LS_KEY_V = 'ss_video_' + CLOUD_NAME + '_' + TAG;
+      var LS_HIDE_KEY = 'ss_hidden_gallery_' + CLOUD_NAME + '_' + TAG;
+      var LS_HIDE_KEY_V = 'ss_hidden_video_' + CLOUD_NAME + '_' + TAG;
       function withCacheBust(url) {
         return url + (url.indexOf('?') === -1 ? '?' : '&') + 'cb=' + Date.now();
+      }
+      function fetchFromSecureApi() {
+        function parseResponse(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        }
+        function normalize(data) {
+          var photos = Array.isArray(data && data.photos) ? data.photos.filter(Boolean) : [];
+          var videos = Array.isArray(data && data.videos) ? data.videos.filter(Boolean) : [];
+          return { photos: photos, videos: videos };
+        }
+        var q = '?tag=' + encodeURIComponent(TAG);
+        return fetch('/.netlify/functions/gallery' + q, { cache: 'no-store' })
+          .then(parseResponse)
+          .catch(function () { return fetch('/api/gallery' + q, { cache: 'no-store' }).then(parseResponse); })
+          .then(normalize);
       }
       function getCachedIds(key) {
         try {
@@ -3925,23 +4162,53 @@
           return Array.isArray(ids) ? ids.filter(Boolean) : [];
         } catch (e) { return []; }
       }
+      function removeIdFromLS(key, publicId) {
+        var ids = getCachedIds(key).filter(function (id) { return id !== publicId; });
+        try { localStorage.setItem(key, JSON.stringify(ids)); } catch (e) { }
+      }
+      function addIdToLS(key, publicId) {
+        var ids = getCachedIds(key);
+        if (ids.indexOf(publicId) === -1) {
+          ids.push(publicId);
+          try { localStorage.setItem(key, JSON.stringify(ids)); } catch (e) { }
+        }
+      }
+      function filterHidden(ids, hiddenKey) {
+        var hidden = getCachedIds(hiddenKey);
+        return (ids || []).filter(function (id) { return hidden.indexOf(id) === -1; });
+      }
       function mergePublicIds(apiResources, cachedIds) {
         var out = [];
         var seen = {};
         var apiIds = (apiResources || []).map(function (r) { return r.public_id; }).filter(Boolean);
-        (cachedIds || []).slice().reverse().forEach(function (id) {
-          if (!seen[id]) { seen[id] = true; out.push(id); }
-        });
         apiIds.forEach(function (id) {
           if (!seen[id]) { seen[id] = true; out.push(id); }
         });
         return out;
       }
+      function bindGalleryImageErrors() {
+        grid.querySelectorAll('img[data-public-id]').forEach(function (img) {
+          img.addEventListener('error', function () {
+            var publicId = img.getAttribute('data-public-id');
+            addIdToLS(LS_HIDE_KEY, publicId);
+            removeIdFromLS(LS_KEY, publicId);
+            images = images.filter(function (item) { return item.public_id !== publicId; });
+            var card = img.closest('.gallery-item');
+            if (card) card.remove();
+            grid.querySelectorAll('.gallery-item').forEach(function (el, i) { el.dataset.index = i; });
+            if (images.length === 0) {
+              grid.style.display = 'none';
+              empty.style.display = 'block';
+              if (lb.classList.contains('open')) closeLightbox();
+            }
+          }, { once: true });
+        });
+      }
 
       function loadFromLocalStorage() {
         try {
-          var cached = getCachedIds(LS_KEY).slice().reverse();
-          var cachedV = getCachedIds(LS_KEY_V).slice().reverse();
+          var cached = filterHidden(getCachedIds(LS_KEY), LS_HIDE_KEY).slice().reverse();
+          var cachedV = filterHidden(getCachedIds(LS_KEY_V), LS_HIDE_KEY_V).slice().reverse();
           var resources = [];
           resources = cached.map(function (pid) { return { public_id: pid, resource_type: 'image' }; });
           cachedV.forEach(function (pid) { resources.push({ public_id: pid, resource_type: 'video' }); });
@@ -3956,50 +4223,85 @@
         empty.innerHTML = '<div style="text-align:center;padding:2.5rem 1rem;">' +
           '<div style="font-size:2.5rem;margin-bottom:1rem;">&#9881;</div>' +
           '<p style="color:#C9A84C;font-size:0.92rem;margin-bottom:0.8rem;letter-spacing:0.1em;"><strong>One-time Gallery Setup Required</strong></p>' +
-          '<p style="color:#888;font-size:0.78rem;line-height:2;max-width:400px;margin:0 auto;text-align:left;">' +
-          '1. Log in to <strong style="color:#C9A84C">cloudinary.com</strong><br>' +
-          '2. Go to <strong style="color:#fff">Settings &#8594; Security</strong><br>' +
-          '3. Tick <strong style="color:#fff">"Resource list"</strong> checkbox &#10003;<br>' +
-          '4. Click <strong style="color:#fff">Save</strong><br><br>' +
-          '<em style="color:#555;">Then reload this page &mdash; your uploaded photos will appear automatically.</em>' +
+          '<p style="color:#888;font-size:0.78rem;line-height:2;max-width:420px;margin:0 auto;text-align:left;">' +
+          '<strong style="color:#fff">Enable Cloudinary Resource List (free, 1 minute):</strong><br>' +
+          '1. Go to <strong style="color:#C9A84C">cloudinary.com</strong> and log in<br>' +
+          '2. Click <strong style="color:#fff">Settings</strong> (top right)<br>' +
+          '3. Go to <strong style="color:#fff">Security</strong> tab<br>' +
+          '4. Under "Restricted media types", find <strong style="color:#fff">"Resource list"</strong><br>' +
+          '5. <strong style="color:#fff">Uncheck</strong> it and click <strong style="color:#fff">Save</strong><br>' +
+          '6. Reload this page — photos will appear automatically.<br><br>' +
+          '<em style="color:#555;">This allows the website to read your uploaded photos. Your images remain private — only the tag list is readable.</em>' +
           '</p></div>';
       }
 
-      // Strategy 1: Cloudinary tag endpoint
-      fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json'))
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function (data) {
-          var photoIds = mergePublicIds(data.resources || [], getCachedIds(LS_KEY));
+      // Strategy 1: Netlify / server-side secure API (optional, skip fast if not available)
+      var secureApiFailed = false;
+      var secureApiPromise = fetchFromSecureApi()
+        .then(function (payload) {
+          var photoIds = filterHidden(payload.photos || [], LS_HIDE_KEY);
+          var videoIds = filterHidden(payload.videos || [], LS_HIDE_KEY_V);
           var resources = photoIds.map(function (pid) { return { public_id: pid, resource_type: 'image' }; });
-          // Keep cache in oldest -> newest order so admin/index can both reverse for recent-first view
+          videoIds.forEach(function (pid) { resources.push({ public_id: pid, resource_type: 'video' }); });
           try { localStorage.setItem(LS_KEY, JSON.stringify(photoIds.slice().reverse())); } catch (e) { }
-          // Also try video tag fetch
-          fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json'))
-            .then(function (r2) {
-              if (!r2.ok) throw new Error('HTTP ' + r2.status);
-              return r2.json();
-            })
-            .then(function (vdata) {
-              var videoIds = mergePublicIds(vdata.resources || [], getCachedIds(LS_KEY_V));
-              var vresources = videoIds.map(function (pid) { return { public_id: pid, resource_type: 'video' }; });
-              try { localStorage.setItem(LS_KEY_V, JSON.stringify(videoIds.slice().reverse())); } catch (e) { }
-              showGallery(resources.concat(vresources));
-            }).catch(function () {
-              var cachedVideoIds = getCachedIds(LS_KEY_V).slice().reverse();
-              var cachedVideos = cachedVideoIds.map(function (pid) { return { public_id: pid, resource_type: 'video' }; });
-              showGallery(resources.concat(cachedVideos));
-            });
+          try { localStorage.setItem(LS_KEY_V, JSON.stringify(videoIds.slice().reverse())); } catch (e) { }
+          if (resources.length > 0) { showGallery(resources); return 'done'; }
+          return 'empty';
         })
-        .catch(function () {
-          // Strategy 2: localStorage cache from admin uploads
-          if (!loadFromLocalStorage()) {
-            // Strategy 3: friendly setup error
-            showSetupError();
-          }
-        });
+        .catch(function () { secureApiFailed = true; return 'failed'; });
+
+      secureApiPromise.then(function (result) {
+        if (result === 'done') return; // already rendered
+
+        // Strategy 2: Public Cloudinary tag-list endpoint
+        // ⚠️  Requires "Resource List" to be ENABLED in:
+        //     Cloudinary → Settings → Security → uncheck "Resource list"
+        var imgUrl = withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json');
+        var vidUrl = withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json');
+
+        fetch(imgUrl)
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            var photoIds = filterHidden(mergePublicIds(data.resources || [], getCachedIds(LS_KEY)), LS_HIDE_KEY);
+            try { localStorage.setItem(LS_KEY, JSON.stringify(photoIds.slice().reverse())); } catch (e) { }
+            var resources = photoIds.map(function (pid) { return { public_id: pid, resource_type: 'image' }; });
+
+            fetch(vidUrl)
+              .then(function (r2) {
+                if (!r2.ok) throw new Error('HTTP ' + r2.status);
+                return r2.json();
+              })
+              .then(function (vdata) {
+                var videoIds = filterHidden(mergePublicIds(vdata.resources || [], getCachedIds(LS_KEY_V)), LS_HIDE_KEY_V);
+                try { localStorage.setItem(LS_KEY_V, JSON.stringify(videoIds.slice().reverse())); } catch (e) { }
+                var vresources = videoIds.map(function (pid) { return { public_id: pid, resource_type: 'video' }; });
+                var all = resources.concat(vresources);
+                if (all.length > 0) { showGallery(all); return; }
+                if (result === 'empty') {
+                  loading.style.display = 'none';
+                  empty.style.display = 'block';
+                  empty.textContent = 'No media uploaded yet.';
+                } else {
+                  if (!loadFromLocalStorage()) { showSetupError(); }
+                }
+              })
+              .catch(function () {
+                // video list failed — show photos only
+                if (resources.length > 0) { showGallery(resources); return; }
+                if (!loadFromLocalStorage()) { showSetupError(); }
+              });
+          })
+          .catch(function () {
+            // Strategy 3: localStorage cache (same browser as admin)
+            if (!loadFromLocalStorage()) {
+              // Strategy 4: friendly setup error
+              showSetupError();
+            }
+          });
+      });
     })();
 
     function sendWA() {
