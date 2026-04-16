@@ -778,6 +778,8 @@
     var TAG = 'silverstargallery';
     var LS_KEY = 'ss_gallery_' + CLOUD_NAME + '_' + TAG;
     var LS_KEY_V = 'ss_video_' + CLOUD_NAME + '_' + TAG;
+    var LS_HIDE_KEY = 'ss_hidden_gallery_' + CLOUD_NAME + '_' + TAG;
+    var LS_HIDE_KEY_V = 'ss_hidden_video_' + CLOUD_NAME + '_' + TAG;
 
     // Persist public_id list to localStorage (bridges admin→index when Resource List is off)
     function persistToLS(key, ids) {
@@ -791,6 +793,22 @@
       persistToLS(key, ids);
       return ids;
     }
+    function addIdToLS(key, publicId) {
+      var ids = getFromLS(key);
+      if (ids.indexOf(publicId) === -1) {
+        ids.push(publicId);
+        persistToLS(key, ids);
+      }
+      return ids;
+    }
+    function unhideId(key, publicId) {
+      var ids = getFromLS(key).filter(function (id) { return id !== publicId; });
+      persistToLS(key, ids);
+    }
+    function filterHidden(ids, hiddenKey) {
+      var hidden = getFromLS(hiddenKey);
+      return (ids || []).filter(function (id) { return hidden.indexOf(id) === -1; });
+    }
     function withCacheBust(url) {
       return url + (url.indexOf('?') === -1 ? '?' : '&') + 'cb=' + Date.now();
     }
@@ -798,10 +816,6 @@
       var out = [];
       var seen = {};
       var apiIds = (apiResources || []).map(function (r) { return r.public_id; }).filter(Boolean);
-      var cached = Array.isArray(cachedIds) ? cachedIds : [];
-      cached.slice().reverse().forEach(function (id) {
-        if (!seen[id]) { seen[id] = true; out.push(id); }
-      });
       apiIds.forEach(function (id) {
         if (!seen[id]) { seen[id] = true; out.push(id); }
       });
@@ -813,6 +827,7 @@
       grid.querySelectorAll('img[data-public-id]').forEach(function (img) {
         img.addEventListener('error', function () {
           var publicId = img.getAttribute('data-public-id');
+          addIdToLS(LS_HIDE_KEY, publicId);
           removeIdFromLS(LS_KEY, publicId);
           var card = img.closest('.admin-thumb');
           if (card) card.remove();
@@ -885,6 +900,7 @@
           try {
             var res = JSON.parse(xhr.responseText);
             if (res && res.public_id && uploadedIds.indexOf(res.public_id) === -1) {
+              unhideId(LS_HIDE_KEY, res.public_id);
               uploadedIds.push(res.public_id);
               persistToLS(LS_KEY, uploadedIds);
             }
@@ -933,6 +949,7 @@
       xhr.onload = function () {
         var res = JSON.parse(xhr.responseText);
         if (res.public_id) {
+          unhideId(LS_HIDE_KEY_V, res.public_id);
           persistToLS(LS_KEY_V, [res.public_id]);
           bar.style.width = '100%';
           status.className = 'upload-status success';
@@ -956,8 +973,9 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var area = document.getElementById('video-preview-area');
-          var mergedIds = mergePublicIds(data.resources || [], getFromLS(LS_KEY_V));
+          var mergedIds = filterHidden(mergePublicIds(data.resources || [], getFromLS(LS_KEY_V)), LS_HIDE_KEY_V);
           if (mergedIds.length === 0) {
+            persistToLS(LS_KEY_V, []);
             area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
             return;
           }
@@ -970,9 +988,17 @@
             '<p class="video-info">Public ID: ' + publicId + '</p>' +
             '<button class="video-delete-btn" onclick="deleteAsset(\'' + publicId + '\',\'video\')">DELETE VIDEO</button>' +
             '</div>';
+          var videoEl = area.querySelector('video');
+          if (videoEl) {
+            videoEl.addEventListener('error', function () {
+              addIdToLS(LS_HIDE_KEY_V, publicId);
+              removeIdFromLS(LS_KEY_V, publicId);
+              area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
+            }, { once: true });
+          }
         }).catch(function () {
           var area = document.getElementById('video-preview-area');
-          var cached = getFromLS(LS_KEY_V);
+          var cached = filterHidden(getFromLS(LS_KEY_V), LS_HIDE_KEY_V);
           if (cached.length > 0) {
             var pid = cached[0];
             area.innerHTML =
@@ -999,7 +1025,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           loading.style.display = 'none';
-          var mergedIds = mergePublicIds(data.resources || [], getFromLS(LS_KEY));
+          var mergedIds = filterHidden(mergePublicIds(data.resources || [], getFromLS(LS_KEY)), LS_HIDE_KEY);
           if (mergedIds.length === 0) {
             empty.style.display = 'block';
             persistToLS(LS_KEY, []);
@@ -1019,7 +1045,7 @@
           bindAdminThumbImageErrors();
         }).catch(function () {
           loading.style.display = 'none';
-          var cached = getFromLS(LS_KEY).slice().reverse();
+          var cached = filterHidden(getFromLS(LS_KEY), LS_HIDE_KEY).slice().reverse();
           if (cached.length > 0) {
             grid.style.display = 'grid';
             grid.innerHTML = cached.map(function (publicId) {
@@ -1041,9 +1067,16 @@
     // ===== DELETE =====
     function deleteAsset(publicId, type) {
       if (!confirm('Delete this ' + type + '? This cannot be undone.')) return;
-      // Cloudinary unsigned delete is not supported directly from browser without server.
-      // We inform the user to delete via Cloudinary dashboard.
-      alert('To delete, please go to your Cloudinary Media Library at cloudinary.com, find the asset "' + publicId + '" and delete it there.\n\nThe gallery on the website will update automatically.');
+      if (type === 'video') {
+        addIdToLS(LS_HIDE_KEY_V, publicId);
+        removeIdFromLS(LS_KEY_V, publicId);
+        loadVideo();
+      } else {
+        addIdToLS(LS_HIDE_KEY, publicId);
+        removeIdFromLS(LS_KEY, publicId);
+        loadGallery();
+      }
+      alert('Removed from website view.\n\nFor permanent deletion from Cloudinary storage, also delete "' + publicId + '" in Cloudinary Media Library.');
     }
   </script>
 </body>
