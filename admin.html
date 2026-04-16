@@ -35,7 +35,7 @@
     }
 
     body {
-      background: var(--black);
+      background: linear-gradient(180deg, #06090d 0%, #0b1118 100%);
       color: var(--white);
       font-family: 'Montserrat', sans-serif;
       min-height: 100vh;
@@ -45,7 +45,7 @@
     #login-screen {
       position: fixed;
       inset: 0;
-      background: var(--black);
+      background: linear-gradient(180deg, #06090d 0%, #0b1118 100%);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -147,6 +147,43 @@
       position: sticky;
       top: 0;
       z-index: 100;
+    }
+
+    .admin-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .sync-status {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.04);
+      color: #9ea5af;
+      padding: 0.42rem 0.8rem;
+      font-size: 0.66rem;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      min-height: 2.05rem;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .sync-status.ok {
+      border-color: rgba(46, 204, 113, 0.35);
+      color: #93d6b0;
+      background: rgba(46, 204, 113, 0.09);
+    }
+
+    .sync-status.cache {
+      border-color: rgba(201, 168, 76, 0.4);
+      color: #e8c96a;
+      background: rgba(201, 168, 76, 0.1);
+    }
+
+    .sync-status.error {
+      border-color: rgba(231, 76, 60, 0.45);
+      color: #ff9d91;
+      background: rgba(231, 76, 60, 0.1);
     }
 
     .admin-logo {
@@ -587,6 +624,18 @@
         padding: 0.8rem 1rem;
       }
 
+      .admin-actions {
+        gap: 0.55rem;
+      }
+
+      .sync-status {
+        max-width: 48vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.58rem;
+        padding: 0.38rem 0.55rem;
+      }
+
       .admin-grid {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       }
@@ -624,7 +673,10 @@
           <small>Gallery Admin</small>
         </div>
       </div>
-      <button class="admin-logout" onclick="doLogout()">LOGOUT</button>
+      <div class="admin-actions">
+        <div class="sync-status" id="sync-status">Last sync: Waiting...</div>
+        <button class="admin-logout" onclick="doLogout()">LOGOUT</button>
+      </div>
     </header>
 
     <main class="admin-main">
@@ -812,6 +864,14 @@
     function withCacheBust(url) {
       return url + (url.indexOf('?') === -1 ? '?' : '&') + 'cb=' + Date.now();
     }
+    function setSyncStatus(mode, message) {
+      var el = document.getElementById('sync-status');
+      if (!el) return;
+      var now = new Date();
+      var t = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      el.className = 'sync-status' + (mode ? (' ' + mode) : '');
+      el.textContent = 'Last sync: ' + message + ' | ' + t;
+    }
     function mergePublicIds(apiResources, cachedIds) {
       var out = [];
       var seen = {};
@@ -846,6 +906,7 @@
       if (pass === ADMIN_PASSWORD) {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('admin-screen').style.display = 'block';
+        setSyncStatus('', 'Starting sync');
         loadGallery();
         loadVideo();
       } else {
@@ -858,6 +919,7 @@
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('login-pass').value = '';
       document.getElementById('login-error').textContent = '';
+      setSyncStatus('', 'Waiting');
     }
 
     // ===== DRAG & DROP STYLING =====
@@ -909,6 +971,7 @@
           if (done === files.length) {
             status.className = 'upload-status success';
             status.textContent = '\u2713 ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + ' uploaded successfully!';
+            setSyncStatus('ok', 'Photo upload complete');
             setTimeout(function () { loadGallery(); }, 1200);
           }
         };
@@ -916,6 +979,7 @@
           done++;
           status.className = 'upload-status error';
           status.textContent = '\u2717 Upload failed. Check your CLOUD_NAME and UPLOAD_PRESET.';
+          setSyncStatus('error', 'Photo upload failed');
         };
         xhr.send(fd);
       });
@@ -954,15 +1018,18 @@
           bar.style.width = '100%';
           status.className = 'upload-status success';
           status.textContent = '✓ Video uploaded successfully!';
+          setSyncStatus('ok', 'Video upload complete');
           setTimeout(function () { loadVideo(); }, 1200);
         } else {
           status.className = 'upload-status error';
           status.textContent = '✗ Upload failed. ' + (res.error ? res.error.message : '');
+          setSyncStatus('error', 'Video upload failed');
         }
       };
       xhr.onerror = function () {
         status.className = 'upload-status error';
         status.textContent = '✗ Upload failed. Check your settings.';
+        setSyncStatus('error', 'Video upload failed');
       };
       xhr.send(fd);
     }
@@ -977,23 +1044,26 @@
           if (mergedIds.length === 0) {
             persistToLS(LS_KEY_V, []);
             area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
+            setSyncStatus('ok', 'Cloud sync complete (no video)');
             return;
           }
           persistToLS(LS_KEY_V, [mergedIds[0]]);
           var publicId = mergedIds[0];
-          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/q_auto,f_auto/' + publicId;
+          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/f_auto,q_auto:best,dpr_auto,w_3840,c_limit/' + publicId;
           area.innerHTML =
             '<div class="video-preview-wrap">' +
             '<video src="' + url + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
             '<p class="video-info">Public ID: ' + publicId + '</p>' +
             '<button class="video-delete-btn" onclick="deleteAsset(\'' + publicId + '\',\'video\')">DELETE VIDEO</button>' +
             '</div>';
+          setSyncStatus('ok', 'Cloud sync complete (video)');
           var videoEl = area.querySelector('video');
           if (videoEl) {
             videoEl.addEventListener('error', function () {
               addIdToLS(LS_HIDE_KEY_V, publicId);
               removeIdFromLS(LS_KEY_V, publicId);
               area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
+              setSyncStatus('cache', 'Removed broken video from cache');
             }, { once: true });
           }
         }).catch(function () {
@@ -1003,13 +1073,15 @@
             var pid = cached[0];
             area.innerHTML =
               '<div class="video-preview-wrap">' +
-              '<video src="https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/q_auto,f_auto/' + pid + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
+              '<video src="https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/f_auto,q_auto:best,dpr_auto,w_3840,c_limit/' + pid + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
               '<p class="video-info">Public ID: ' + pid + '</p>' +
               '<button class="video-delete-btn" onclick="deleteAsset(\'' + pid + '\',\'video\')">DELETE VIDEO</button>' +
               '</div>';
+            setSyncStatus('cache', 'Using cached video');
             return;
           }
           area.innerHTML = '<div class="admin-empty">Could not load video. Check CLOUD_NAME and Resource List setting.</div>';
+          setSyncStatus('error', 'Video sync failed');
         });
     }
 
@@ -1029,6 +1101,7 @@
           if (mergedIds.length === 0) {
             empty.style.display = 'block';
             persistToLS(LS_KEY, []);
+            setSyncStatus('ok', 'Cloud sync complete (no photos)');
             return;
           }
           // Persist full list to localStorage — index.html uses this as fallback
@@ -1043,6 +1116,7 @@
               '</div></div>';
           }).join('');
           bindAdminThumbImageErrors();
+          setSyncStatus('ok', 'Cloud sync complete (' + mergedIds.length + ' photos)');
         }).catch(function () {
           loading.style.display = 'none';
           var cached = filterHidden(getFromLS(LS_KEY), LS_HIDE_KEY).slice().reverse();
@@ -1057,10 +1131,12 @@
                 '</div></div>';
             }).join('');
             bindAdminThumbImageErrors();
+            setSyncStatus('cache', 'Using cached photos (' + cached.length + ')');
             return;
           }
           empty.style.display = 'block';
           empty.textContent = 'Could not load gallery from Cloudinary. Please enable "Resource List" in Cloudinary Settings \u2192 Security, then refresh.';
+          setSyncStatus('error', 'Photo sync failed');
         });
     }
 
@@ -1071,10 +1147,12 @@
         addIdToLS(LS_HIDE_KEY_V, publicId);
         removeIdFromLS(LS_KEY_V, publicId);
         loadVideo();
+        setSyncStatus('cache', 'Video hidden from website');
       } else {
         addIdToLS(LS_HIDE_KEY, publicId);
         removeIdFromLS(LS_KEY, publicId);
         loadGallery();
+        setSyncStatus('cache', 'Photo hidden from website');
       }
       alert('Removed from website view.\n\nFor permanent deletion from Cloudinary storage, also delete "' + publicId + '" in Cloudinary Media Library.');
     }
