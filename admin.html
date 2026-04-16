@@ -786,6 +786,22 @@
     function getFromLS(key) {
       try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : []; } catch (e) { return []; }
     }
+    function withCacheBust(url) {
+      return url + (url.indexOf('?') === -1 ? '?' : '&') + 'cb=' + Date.now();
+    }
+    function mergePublicIds(apiResources, cachedIds) {
+      var out = [];
+      var seen = {};
+      var apiIds = (apiResources || []).map(function (r) { return r.public_id; }).filter(Boolean);
+      var cached = Array.isArray(cachedIds) ? cachedIds : [];
+      cached.slice().reverse().forEach(function (id) {
+        if (!seen[id]) { seen[id] = true; out.push(id); }
+      });
+      apiIds.forEach(function (id) {
+        if (!seen[id]) { seen[id] = true; out.push(id); }
+      });
+      return out;
+    }
 
     // ===== LOGIN =====
     function doLogin() {
@@ -895,6 +911,7 @@
       xhr.onload = function () {
         var res = JSON.parse(xhr.responseText);
         if (res.public_id) {
+          persistToLS(LS_KEY_V, [res.public_id]);
           bar.style.width = '100%';
           status.className = 'upload-status success';
           status.textContent = '✓ Video uploaded successfully!';
@@ -913,24 +930,38 @@
 
     // ===== LOAD VIDEO =====
     function loadVideo() {
-      fetch('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json')
+      fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json'))
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var area = document.getElementById('video-preview-area');
-          if (!data.resources || data.resources.length === 0) {
+          var mergedIds = mergePublicIds(data.resources || [], getFromLS(LS_KEY_V));
+          if (mergedIds.length === 0) {
             area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
             return;
           }
-          var v = data.resources[0];
-          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/' + v.public_id + '.mp4';
+          persistToLS(LS_KEY_V, [mergedIds[0]]);
+          var publicId = mergedIds[0];
+          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/q_auto,f_auto/' + publicId;
           area.innerHTML =
             '<div class="video-preview-wrap">' +
             '<video src="' + url + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
-            '<p class="video-info">Public ID: ' + v.public_id + '</p>' +
-            '<button class="video-delete-btn" onclick="deleteAsset(\'' + v.public_id + '\',\'video\')">DELETE VIDEO</button>' +
+            '<p class="video-info">Public ID: ' + publicId + '</p>' +
+            '<button class="video-delete-btn" onclick="deleteAsset(\'' + publicId + '\',\'video\')">DELETE VIDEO</button>' +
             '</div>';
         }).catch(function () {
-          document.getElementById('video-preview-area').innerHTML = '<div class="admin-empty">Could not load video. Check CLOUD_NAME and Resource List setting.</div>';
+          var area = document.getElementById('video-preview-area');
+          var cached = getFromLS(LS_KEY_V);
+          if (cached.length > 0) {
+            var pid = cached[0];
+            area.innerHTML =
+              '<div class="video-preview-wrap">' +
+              '<video src="https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/q_auto,f_auto/' + pid + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
+              '<p class="video-info">Public ID: ' + pid + '</p>' +
+              '<button class="video-delete-btn" onclick="deleteAsset(\'' + pid + '\',\'video\')">DELETE VIDEO</button>' +
+              '</div>';
+            return;
+          }
+          area.innerHTML = '<div class="admin-empty">Could not load video. Check CLOUD_NAME and Resource List setting.</div>';
         });
     }
 
@@ -942,28 +973,42 @@
       loading.style.display = 'block';
       grid.style.display = 'none';
       empty.style.display = 'none';
-      fetch('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json')
+      fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json'))
         .then(function (r) { return r.json(); })
         .then(function (data) {
           loading.style.display = 'none';
-          if (!data.resources || data.resources.length === 0) {
+          var mergedIds = mergePublicIds(data.resources || [], getFromLS(LS_KEY));
+          if (mergedIds.length === 0) {
             empty.style.display = 'block';
             persistToLS(LS_KEY, []);
             return;
           }
           // Persist full list to localStorage — index.html uses this as fallback
-          persistToLS(LS_KEY, data.resources.map(function (r) { return r.public_id; }));
+          persistToLS(LS_KEY, mergedIds.slice().reverse());
           grid.style.display = 'grid';
-          grid.innerHTML = data.resources.map(function (r) {
-            var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + r.public_id;
+          grid.innerHTML = mergedIds.map(function (publicId) {
+            var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + publicId;
             return '<div class="admin-thumb">' +
               '<img src="' + thumb + '" alt="" loading="lazy">' +
               '<div class="admin-thumb-overlay">' +
-              '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + r.public_id + '\',\'image\')">&#x2715;</button>' +
+              '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + publicId + '\',\'image\')">&#x2715;</button>' +
               '</div></div>';
           }).join('');
         }).catch(function () {
           loading.style.display = 'none';
+          var cached = getFromLS(LS_KEY).slice().reverse();
+          if (cached.length > 0) {
+            grid.style.display = 'grid';
+            grid.innerHTML = cached.map(function (publicId) {
+              var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + publicId;
+              return '<div class="admin-thumb">' +
+                '<img src="' + thumb + '" alt="" loading="lazy">' +
+                '<div class="admin-thumb-overlay">' +
+                '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + publicId + '\',\'image\')">&#x2715;</button>' +
+                '</div></div>';
+            }).join('');
+            return;
+          }
           empty.style.display = 'block';
           empty.textContent = 'Could not load gallery from Cloudinary. Please enable "Resource List" in Cloudinary Settings \u2192 Security, then refresh.';
         });
