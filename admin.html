@@ -872,6 +872,22 @@
       el.className = 'sync-status' + (mode ? (' ' + mode) : '');
       el.textContent = 'Last sync: ' + message + ' | ' + t;
     }
+    function fetchFromSecureApi() {
+      function parseResponse(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }
+      function normalize(data) {
+        var photos = Array.isArray(data && data.photos) ? data.photos.filter(Boolean) : [];
+        var videos = Array.isArray(data && data.videos) ? data.videos.filter(Boolean) : [];
+        return { photos: photos, videos: videos };
+      }
+      var q = '?tag=' + encodeURIComponent(TAG);
+      return fetch('/.netlify/functions/gallery' + q, { cache: 'no-store' })
+        .then(parseResponse)
+        .catch(function () { return fetch('/api/gallery' + q, { cache: 'no-store' }).then(parseResponse); })
+        .then(normalize);
+    }
     function mergePublicIds(apiResources, cachedIds) {
       var out = [];
       var seen = {};
@@ -1036,52 +1052,61 @@
 
     // ===== LOAD VIDEO =====
     function loadVideo() {
-      fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json'))
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          var area = document.getElementById('video-preview-area');
-          var mergedIds = filterHidden(mergePublicIds(data.resources || [], getFromLS(LS_KEY_V)), LS_HIDE_KEY_V);
-          if (mergedIds.length === 0) {
+      var area = document.getElementById('video-preview-area');
+      function renderVideo(publicId, syncClass, syncMsg) {
+        var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/f_auto,q_auto:best,dpr_auto,w_3840,c_limit/' + publicId;
+        area.innerHTML =
+          '<div class="video-preview-wrap">' +
+          '<video src="' + url + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
+          '<p class="video-info">Public ID: ' + publicId + '</p>' +
+          '<button class="video-delete-btn" onclick="deleteAsset(\'' + publicId + '\',\'video\')">DELETE VIDEO</button>' +
+          '</div>';
+        setSyncStatus(syncClass, syncMsg);
+        var videoEl = area.querySelector('video');
+        if (videoEl) {
+          videoEl.addEventListener('error', function () {
+            addIdToLS(LS_HIDE_KEY_V, publicId);
+            removeIdFromLS(LS_KEY_V, publicId);
+            area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
+            setSyncStatus('cache', 'Removed broken video from cache');
+          }, { once: true });
+        }
+      }
+
+      fetchFromSecureApi()
+        .then(function (payload) {
+          var ids = filterHidden(payload.videos || [], LS_HIDE_KEY_V);
+          if (ids.length === 0) {
             persistToLS(LS_KEY_V, []);
             area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
-            setSyncStatus('ok', 'Cloud sync complete (no video)');
+            setSyncStatus('ok', 'Secure sync complete (no video)');
             return;
           }
-          persistToLS(LS_KEY_V, [mergedIds[0]]);
-          var publicId = mergedIds[0];
-          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/f_auto,q_auto:best,dpr_auto,w_3840,c_limit/' + publicId;
-          area.innerHTML =
-            '<div class="video-preview-wrap">' +
-            '<video src="' + url + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
-            '<p class="video-info">Public ID: ' + publicId + '</p>' +
-            '<button class="video-delete-btn" onclick="deleteAsset(\'' + publicId + '\',\'video\')">DELETE VIDEO</button>' +
-            '</div>';
-          setSyncStatus('ok', 'Cloud sync complete (video)');
-          var videoEl = area.querySelector('video');
-          if (videoEl) {
-            videoEl.addEventListener('error', function () {
-              addIdToLS(LS_HIDE_KEY_V, publicId);
-              removeIdFromLS(LS_KEY_V, publicId);
-              area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
-              setSyncStatus('cache', 'Removed broken video from cache');
-            }, { once: true });
-          }
-        }).catch(function () {
-          var area = document.getElementById('video-preview-area');
-          var cached = filterHidden(getFromLS(LS_KEY_V), LS_HIDE_KEY_V);
-          if (cached.length > 0) {
-            var pid = cached[0];
-            area.innerHTML =
-              '<div class="video-preview-wrap">' +
-              '<video src="https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/f_auto,q_auto:best,dpr_auto,w_3840,c_limit/' + pid + '" controls playsinline preload="metadata" style="max-width:100%;"></video>' +
-              '<p class="video-info">Public ID: ' + pid + '</p>' +
-              '<button class="video-delete-btn" onclick="deleteAsset(\'' + pid + '\',\'video\')">DELETE VIDEO</button>' +
-              '</div>';
-            setSyncStatus('cache', 'Using cached video');
-            return;
-          }
-          area.innerHTML = '<div class="admin-empty">Could not load video. Check CLOUD_NAME and Resource List setting.</div>';
-          setSyncStatus('error', 'Video sync failed');
+          persistToLS(LS_KEY_V, [ids[0]]);
+          renderVideo(ids[0], 'ok', 'Secure sync complete (video)');
+        })
+        .catch(function () {
+          fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json'))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              var mergedIds = filterHidden(mergePublicIds(data.resources || [], getFromLS(LS_KEY_V)), LS_HIDE_KEY_V);
+              if (mergedIds.length === 0) {
+                persistToLS(LS_KEY_V, []);
+                area.innerHTML = '<div class="admin-empty">No video uploaded yet.</div>';
+                setSyncStatus('ok', 'Cloud sync complete (no video)');
+                return;
+              }
+              persistToLS(LS_KEY_V, [mergedIds[0]]);
+              renderVideo(mergedIds[0], 'ok', 'Cloud sync complete (video)');
+            }).catch(function () {
+              var cached = filterHidden(getFromLS(LS_KEY_V), LS_HIDE_KEY_V);
+              if (cached.length > 0) {
+                renderVideo(cached[0], 'cache', 'Using cached video');
+                return;
+              }
+              area.innerHTML = '<div class="admin-empty">Could not load video from secure API or Cloudinary list.</div>';
+              setSyncStatus('error', 'Video sync failed');
+            });
         });
     }
 
@@ -1093,50 +1118,59 @@
       loading.style.display = 'block';
       grid.style.display = 'none';
       empty.style.display = 'none';
-      fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json'))
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          loading.style.display = 'none';
-          var mergedIds = filterHidden(mergePublicIds(data.resources || [], getFromLS(LS_KEY)), LS_HIDE_KEY);
-          if (mergedIds.length === 0) {
-            empty.style.display = 'block';
-            persistToLS(LS_KEY, []);
-            setSyncStatus('ok', 'Cloud sync complete (no photos)');
-            return;
-          }
-          // Persist full list to localStorage — index.html uses this as fallback
-          persistToLS(LS_KEY, mergedIds.slice().reverse());
-          grid.style.display = 'grid';
-          grid.innerHTML = mergedIds.map(function (publicId) {
-            var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + publicId;
-            return '<div class="admin-thumb">' +
-              '<img src="' + thumb + '" alt="" loading="lazy" data-public-id="' + publicId + '">' +
-              '<div class="admin-thumb-overlay">' +
-              '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + publicId + '\',\'image\')">&#x2715;</button>' +
-              '</div></div>';
-          }).join('');
-          bindAdminThumbImageErrors();
-          setSyncStatus('ok', 'Cloud sync complete (' + mergedIds.length + ' photos)');
-        }).catch(function () {
-          loading.style.display = 'none';
-          var cached = filterHidden(getFromLS(LS_KEY), LS_HIDE_KEY).slice().reverse();
-          if (cached.length > 0) {
-            grid.style.display = 'grid';
-            grid.innerHTML = cached.map(function (publicId) {
-              var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + publicId;
-              return '<div class="admin-thumb">' +
-                '<img src="' + thumb + '" alt="" loading="lazy" data-public-id="' + publicId + '">' +
-                '<div class="admin-thumb-overlay">' +
-                '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + publicId + '\',\'image\')">&#x2715;</button>' +
-                '</div></div>';
-            }).join('');
-            bindAdminThumbImageErrors();
-            setSyncStatus('cache', 'Using cached photos (' + cached.length + ')');
-            return;
-          }
+      function renderPhotoGrid(ids, syncClass, syncMsg) {
+        if (ids.length === 0) {
           empty.style.display = 'block';
-          empty.textContent = 'Could not load gallery from Cloudinary. Please enable "Resource List" in Cloudinary Settings \u2192 Security, then refresh.';
-          setSyncStatus('error', 'Photo sync failed');
+          persistToLS(LS_KEY, []);
+          setSyncStatus(syncClass, syncMsg);
+          return;
+        }
+        persistToLS(LS_KEY, ids.slice().reverse());
+        grid.style.display = 'grid';
+        grid.innerHTML = ids.map(function (publicId) {
+          var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + publicId;
+          return '<div class="admin-thumb">' +
+            '<img src="' + thumb + '" alt="" loading="lazy" data-public-id="' + publicId + '">' +
+            '<div class="admin-thumb-overlay">' +
+            '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + publicId + '\',\'image\')">&#x2715;</button>' +
+            '</div></div>';
+        }).join('');
+        bindAdminThumbImageErrors();
+        setSyncStatus(syncClass, syncMsg);
+      }
+
+      fetchFromSecureApi()
+        .then(function (payload) {
+          loading.style.display = 'none';
+          var ids = filterHidden(payload.photos || [], LS_HIDE_KEY);
+          if (ids.length === 0) {
+            renderPhotoGrid([], 'ok', 'Secure sync complete (no photos)');
+            return;
+          }
+          renderPhotoGrid(ids, 'ok', 'Secure sync complete (' + ids.length + ' photos)');
+        })
+        .catch(function () {
+          fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json'))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              loading.style.display = 'none';
+              var mergedIds = filterHidden(mergePublicIds(data.resources || [], getFromLS(LS_KEY)), LS_HIDE_KEY);
+              if (mergedIds.length === 0) {
+                renderPhotoGrid([], 'ok', 'Cloud sync complete (no photos)');
+                return;
+              }
+              renderPhotoGrid(mergedIds, 'ok', 'Cloud sync complete (' + mergedIds.length + ' photos)');
+            }).catch(function () {
+              loading.style.display = 'none';
+              var cached = filterHidden(getFromLS(LS_KEY), LS_HIDE_KEY).slice().reverse();
+              if (cached.length > 0) {
+                renderPhotoGrid(cached, 'cache', 'Using cached photos (' + cached.length + ')');
+                return;
+              }
+              empty.style.display = 'block';
+              empty.textContent = 'Could not load gallery from secure API or Cloudinary list.';
+              setSyncStatus('error', 'Photo sync failed');
+            });
         });
     }
 
