@@ -3859,10 +3859,12 @@
         // Video
         if (videos.length > 0) {
           var v = videos[0];
-          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/' + v.public_id + '.mp4';
+          var url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/q_auto,f_auto/' + v.public_id;
           videoCont.innerHTML = '<video src="' + url + '" controls playsinline preload="metadata" poster="' +
             'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/so_0/' + v.public_id + '.jpg' + '"></video>';
           videoSec.style.display = 'block';
+        } else {
+          videoSec.style.display = 'none';
         }
 
         // Photos
@@ -3913,24 +3915,36 @@
 
       var LS_KEY = 'ss_gallery_' + CLOUD_NAME + '_' + TAG;
       var LS_KEY_V = 'ss_video_' + CLOUD_NAME + '_' + TAG;
+      function withCacheBust(url) {
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'cb=' + Date.now();
+      }
+      function getCachedIds(key) {
+        try {
+          var raw = localStorage.getItem(key);
+          var ids = raw ? JSON.parse(raw) : [];
+          return Array.isArray(ids) ? ids.filter(Boolean) : [];
+        } catch (e) { return []; }
+      }
+      function mergePublicIds(apiResources, cachedIds) {
+        var out = [];
+        var seen = {};
+        var apiIds = (apiResources || []).map(function (r) { return r.public_id; }).filter(Boolean);
+        (cachedIds || []).slice().reverse().forEach(function (id) {
+          if (!seen[id]) { seen[id] = true; out.push(id); }
+        });
+        apiIds.forEach(function (id) {
+          if (!seen[id]) { seen[id] = true; out.push(id); }
+        });
+        return out;
+      }
 
       function loadFromLocalStorage() {
         try {
-          var cached = localStorage.getItem(LS_KEY);
-          var cachedV = localStorage.getItem(LS_KEY_V);
+          var cached = getCachedIds(LS_KEY).slice().reverse();
+          var cachedV = getCachedIds(LS_KEY_V).slice().reverse();
           var resources = [];
-          if (cached) {
-            var pids = JSON.parse(cached);
-            if (Array.isArray(pids)) {
-              resources = pids.map(function (pid) { return { public_id: pid, resource_type: 'image' }; });
-            }
-          }
-          if (cachedV) {
-            var vpids = JSON.parse(cachedV);
-            if (Array.isArray(vpids)) {
-              vpids.forEach(function (pid) { resources.push({ public_id: pid, resource_type: 'video' }); });
-            }
-          }
+          resources = cached.map(function (pid) { return { public_id: pid, resource_type: 'image' }; });
+          cachedV.forEach(function (pid) { resources.push({ public_id: pid, resource_type: 'video' }); });
           if (resources.length > 0) { showGallery(resources); return true; }
         } catch (e) { }
         return false;
@@ -3952,23 +3966,32 @@
       }
 
       // Strategy 1: Cloudinary tag endpoint
-      fetch('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json')
+      fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/image/list/' + TAG + '.json'))
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         })
         .then(function (data) {
-          var resources = (data.resources || []).map(function (r) { return Object.assign({ resource_type: 'image' }, r); });
-          // Save public_ids to localStorage so next load is faster
-          try { localStorage.setItem(LS_KEY, JSON.stringify(resources.map(function (r) { return r.public_id; }))); } catch (e) { }
+          var photoIds = mergePublicIds(data.resources || [], getCachedIds(LS_KEY));
+          var resources = photoIds.map(function (pid) { return { public_id: pid, resource_type: 'image' }; });
+          // Keep cache in oldest -> newest order so admin/index can both reverse for recent-first view
+          try { localStorage.setItem(LS_KEY, JSON.stringify(photoIds.slice().reverse())); } catch (e) { }
           // Also try video tag fetch
-          fetch('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json')
-            .then(function (r2) { return r2.json(); })
+          fetch(withCacheBust('https://res.cloudinary.com/' + CLOUD_NAME + '/video/list/' + TAG + '.json'))
+            .then(function (r2) {
+              if (!r2.ok) throw new Error('HTTP ' + r2.status);
+              return r2.json();
+            })
             .then(function (vdata) {
-              var vresources = (vdata.resources || []).map(function (r) { return Object.assign({ resource_type: 'video' }, r); });
-              try { localStorage.setItem(LS_KEY_V, JSON.stringify(vresources.map(function (r) { return r.public_id; }))); } catch (e) { }
+              var videoIds = mergePublicIds(vdata.resources || [], getCachedIds(LS_KEY_V));
+              var vresources = videoIds.map(function (pid) { return { public_id: pid, resource_type: 'video' }; });
+              try { localStorage.setItem(LS_KEY_V, JSON.stringify(videoIds.slice().reverse())); } catch (e) { }
               showGallery(resources.concat(vresources));
-            }).catch(function () { showGallery(resources); });
+            }).catch(function () {
+              var cachedVideoIds = getCachedIds(LS_KEY_V).slice().reverse();
+              var cachedVideos = cachedVideoIds.map(function (pid) { return { public_id: pid, resource_type: 'video' }; });
+              showGallery(resources.concat(cachedVideos));
+            });
         })
         .catch(function () {
           // Strategy 2: localStorage cache from admin uploads
