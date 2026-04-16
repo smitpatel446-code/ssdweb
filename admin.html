@@ -786,6 +786,11 @@
     function getFromLS(key) {
       try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : []; } catch (e) { return []; }
     }
+    function removeIdFromLS(key, publicId) {
+      var ids = getFromLS(key).filter(function (id) { return id !== publicId; });
+      persistToLS(key, ids);
+      return ids;
+    }
     function withCacheBust(url) {
       return url + (url.indexOf('?') === -1 ? '?' : '&') + 'cb=' + Date.now();
     }
@@ -801,6 +806,23 @@
         if (!seen[id]) { seen[id] = true; out.push(id); }
       });
       return out;
+    }
+    function bindAdminThumbImageErrors() {
+      var grid = document.getElementById('admin-grid');
+      var empty = document.getElementById('admin-empty');
+      grid.querySelectorAll('img[data-public-id]').forEach(function (img) {
+        img.addEventListener('error', function () {
+          var publicId = img.getAttribute('data-public-id');
+          removeIdFromLS(LS_KEY, publicId);
+          var card = img.closest('.admin-thumb');
+          if (card) card.remove();
+          if (!grid.querySelector('.admin-thumb')) {
+            grid.style.display = 'none';
+            empty.style.display = 'block';
+            empty.textContent = 'No photos yet. Upload some above.';
+          }
+        }, { once: true });
+      });
     }
 
     // ===== LOGIN =====
@@ -989,11 +1011,12 @@
           grid.innerHTML = mergedIds.map(function (publicId) {
             var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + publicId;
             return '<div class="admin-thumb">' +
-              '<img src="' + thumb + '" alt="" loading="lazy">' +
+              '<img src="' + thumb + '" alt="" loading="lazy" data-public-id="' + publicId + '">' +
               '<div class="admin-thumb-overlay">' +
               '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + publicId + '\',\'image\')">&#x2715;</button>' +
               '</div></div>';
           }).join('');
+          bindAdminThumbImageErrors();
         }).catch(function () {
           loading.style.display = 'none';
           var cached = getFromLS(LS_KEY).slice().reverse();
@@ -1002,11 +1025,12 @@
             grid.innerHTML = cached.map(function (publicId) {
               var thumb = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_200,h_200,c_fill,q_auto/' + publicId;
               return '<div class="admin-thumb">' +
-                '<img src="' + thumb + '" alt="" loading="lazy">' +
+                '<img src="' + thumb + '" alt="" loading="lazy" data-public-id="' + publicId + '">' +
                 '<div class="admin-thumb-overlay">' +
                 '<button class="delete-btn" title="Delete" onclick="deleteAsset(\'' + publicId + '\',\'image\')">&#x2715;</button>' +
                 '</div></div>';
             }).join('');
+            bindAdminThumbImageErrors();
             return;
           }
           empty.style.display = 'block';
